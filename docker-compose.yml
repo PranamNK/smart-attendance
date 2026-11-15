@@ -1,0 +1,17 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: smart_attendance
+      MYSQL_ROOT_PASSWORD: change-this-local-password
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pchange-this-local-password"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - attendance-mysql:/var/lib/mysql
+volumes:
+  attendance-mysql:

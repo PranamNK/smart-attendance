@@ -1,0 +1,42 @@
+node_modules
+.next
+.env
+.env.*
+!.env.example
+.env.local
+*.local.md
+coverage
+private-uploads/
+apps/recognition-api/.env
+apps/recognition-api/artifacts/
+apps/recognition-api/**/*.pt
+apps/recognition-api/**/*.pth
+apps/recognition-api/**/*.onnx
+
+# Python environments and generated files
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Build and editor output
+*.tsbuildinfo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Credentials, local databases, and private exports
+*.pem
+*.key
+*.p12
+*.pfx
+*.db
+*.sqlite
+*.sqlite3
+credentials*.json
+service-account*.json
+
+# Sensitive recognition notebooks and local model data
+docs/colab/attendance_recognition_original.ipynb
+*.npz

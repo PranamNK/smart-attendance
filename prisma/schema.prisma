@@ -1,0 +1,286 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum AssignmentKind {
+  CLASS_TEACHER
+  SUBJECT_INSTRUCTOR
+}
+
+enum SessionStatus {
+  DRAFT
+  PROCESSING
+  REVIEW_REQUIRED
+  CONFIRMED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum RecognitionStatus {
+  MATCHED
+  REVIEW_REQUIRED
+  UNKNOWN
+  DUPLICATE
+}
+
+enum ReviewAction {
+  CONFIRM
+  CHANGE_IDENTITY
+  MARK_UNKNOWN
+  MARK_DUPLICATE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  student      Student?
+  teacher      Teacher?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Department {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  code      String    @unique
+  classes   Class[]
+  teachers  Teacher[]
+  students  Student[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Semester {
+  id        String   @id @default(uuid())
+  number    Int      @unique
+  classes   Class[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Section {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  classes   Class[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Class {
+  id            String              @id @default(uuid())
+  identifier    String              @unique
+  academicBatch String
+  departmentId  String
+  semesterId    String
+  sectionId     String
+  department    Department          @relation(fields: [departmentId], references: [id])
+  semester      Semester            @relation(fields: [semesterId], references: [id])
+  section       Section             @relation(fields: [sectionId], references: [id])
+  enrollments   ClassEnrollment[]
+  assignments   TeacherAssignment[]
+  sessions      AttendanceSession[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([departmentId, semesterId, sectionId])
+}
+
+model Student {
+  id           String              @id @default(uuid())
+  userId       String              @unique
+  fullName     String
+  usn          String              @unique
+  departmentId String
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department          @relation(fields: [departmentId], references: [id])
+  enrollments  ClassEnrollment[]
+  records      AttendanceRecord[]
+  faceProfile  StudentFaceProfile?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model Teacher {
+  id           String              @id @default(uuid())
+  userId       String              @unique
+  displayName  String
+  departmentId String
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department          @relation(fields: [departmentId], references: [id])
+  assignments  TeacherAssignment[]
+  sessions     AttendanceSession[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model Subject {
+  id          String              @id @default(uuid())
+  code        String              @unique
+  name        String
+  assignments TeacherAssignment[]
+  sessions    AttendanceSession[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model ClassEnrollment {
+  id        String   @id @default(uuid())
+  classId   String
+  studentId String
+  labBatch  String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([classId, studentId])
+}
+
+model TeacherAssignment {
+  id        String         @id @default(uuid())
+  teacherId String
+  classId   String
+  subjectId String
+  kind      AssignmentKind
+  teacher   Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class     Class          @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject   Subject        @relation(fields: [subjectId], references: [id])
+  createdAt DateTime       @default(now())
+
+  @@unique([teacherId, classId, subjectId, kind])
+}
+
+model AttendanceSession {
+  id             String               @id @default(uuid())
+  classId        String
+  subjectId      String
+  teacherId      String
+  heldAt         DateTime
+  slot           String
+  imageRef       String?
+  imageExpiresAt DateTime?
+  status         SessionStatus        @default(DRAFT)
+  confirmedAt    DateTime?
+  class          Class                @relation(fields: [classId], references: [id])
+  subject        Subject              @relation(fields: [subjectId], references: [id])
+  teacher        Teacher              @relation(fields: [teacherId], references: [id])
+  records        AttendanceRecord[]
+  detections     FaceDetection[]
+  auditLogs      AttendanceAuditLog[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([classId, subjectId, heldAt, slot])
+}
+
+model AttendanceRecord {
+  id          String                 @id @default(uuid())
+  sessionId   String
+  studentId   String
+  status      AttendanceStatus
+  isManual    Boolean                @default(false)
+  session     AttendanceSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student     Student                @relation(fields: [studentId], references: [id])
+  corrections AttendanceCorrection[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@unique([sessionId, studentId])
+}
+
+model FaceDetection {
+  id        String                 @id @default(uuid())
+  sessionId String
+  faceKey   String
+  bbox      Json
+  cropRef   String?
+  status    RecognitionStatus
+  session   AttendanceSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  result    FaceRecognitionResult?
+  review    RecognitionReview?
+  createdAt DateTime               @default(now())
+
+  @@unique([sessionId, faceKey])
+}
+
+model FaceRecognitionResult {
+  id                   String        @id @default(uuid())
+  detectionId          String        @unique
+  predictedStudentId   String?
+  similarity           Float?
+  secondBestStudentId  String?
+  secondBestSimilarity Float?
+  margin               Float?
+  duplicateWarning     Boolean       @default(false)
+  detection            FaceDetection @relation(fields: [detectionId], references: [id], onDelete: Cascade)
+  createdAt            DateTime      @default(now())
+}
+
+model RecognitionReview {
+  id                String        @id @default(uuid())
+  detectionId       String        @unique
+  reviewerId        String
+  action            ReviewAction
+  resolvedStudentId String?
+  note              String?
+  detection         FaceDetection @relation(fields: [detectionId], references: [id], onDelete: Cascade)
+  createdAt         DateTime      @default(now())
+}
+
+model AttendanceCorrection {
+  id             String           @id @default(uuid())
+  recordId       String
+  actorId        String
+  previousStatus AttendanceStatus
+  newStatus      AttendanceStatus
+  reason         String
+  record         AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
+}
+
+model AttendanceAuditLog {
+  id        String             @id @default(uuid())
+  sessionId String?
+  actorId   String
+  action    String
+  metadata  Json?
+  session   AttendanceSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime           @default(now())
+}
+
+model StudentFaceProfile {
+  id         String                   @id @default(uuid())
+  studentId  String                   @unique
+  status     String
+  consentAt  DateTime?
+  student    Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  references FaceReferenceEmbedding[]
+  updatedAt  DateTime                 @updatedAt
+}
+
+model FaceReferenceEmbedding {
+  id              String             @id @default(uuid())
+  profileId       String
+  encryptedVector Bytes
+  keyVersion      String
+  profile         StudentFaceProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt       DateTime           @default(now())
+}
